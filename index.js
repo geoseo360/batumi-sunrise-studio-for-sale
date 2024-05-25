@@ -48,6 +48,14 @@
     document.body.classList.add('desktop');
   }
 
+  document.querySelectorAll('.thumbnail').forEach(function(element) {
+  element.addEventListener('click', function() {
+    var sceneId = element.getAttribute('data-scene');
+    scenes[sceneId].switchTo();
+  });
+});
+
+
   // Detect whether we are on a touch device.
   document.body.classList.add('no-touch');
   window.addEventListener('touchstart', function() {
