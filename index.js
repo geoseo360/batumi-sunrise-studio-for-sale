@@ -1,6 +1,21 @@
-(function() {
-  'use strict';
+/*
+ * Copyright 2016 Google Inc. All rights reserved.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+'use strict';
 
+(function() {
   var Marzipano = window.Marzipano;
   var bowser = window.bowser;
   var screenfull = window.screenfull;
@@ -14,6 +29,32 @@
   var sceneListToggleElement = document.querySelector('#sceneListToggle');
   var autorotateToggleElement = document.querySelector('#autorotateToggle');
   var fullscreenToggleElement = document.querySelector('#fullscreenToggle');
+
+  function switchSceneWithZoom(sceneId) {
+  var currentScene = viewer.scene();
+  var newScene = scenes[sceneId];
+  
+  if (!newScene || currentScene === newScene) return;
+
+  var view = currentScene.view();
+  
+  // Анимация зума
+  view.lookTo({
+    yaw: view.yaw(),
+    pitch: view.pitch(),
+    fov: Math.PI / 2 // Зум до половины поля зрения
+  }, 1000, function() {
+    newScene.switchTo({ transitionDuration: 0 }); // Переключение на новую сцену без задержки
+    
+    // Возвращение зума обратно
+    newScene.view().setFov(view.fov());
+    newScene.view().lookTo({
+      yaw: newScene.view().yaw(),
+      pitch: newScene.view().pitch(),
+      fov: Math.PI / 4 // Вернуть зум к первоначальному состоянию
+    }, 1000);
+  });
+
 
   // Detect desktop or mobile mode.
   if (window.matchMedia) {
@@ -33,6 +74,14 @@
     document.body.classList.add('desktop');
   }
 
+  document.querySelectorAll('.thumbnail').forEach(function(element) {
+  element.addEventListener('click', function() {
+    var sceneId = element.getAttribute('data-scene');
+    scenes[sceneId].switchTo();
+  });
+});
+
+
   // Detect whether we are on a touch device.
   document.body.classList.add('no-touch');
   window.addEventListener('touchstart', function() {
@@ -51,6 +100,14 @@
       mouseViewMode: data.settings.mouseViewMode
     }
   };
+
+  document.querySelectorAll('.thumbnail').forEach(function(element) {
+  element.addEventListener('click', function() {
+    var sceneId = element.getAttribute('data-scene');
+    scenes[sceneId].switchTo();
+  });
+});
+
 
   // Initialize viewer.
   var viewer = new Marzipano.Viewer(panoElement, viewerOpts);
@@ -134,7 +191,7 @@
   scenes.forEach(function(scene) {
     var el = document.querySelector('#sceneList .scene[data-id="' + scene.data.id + '"]');
     el.addEventListener('click', function() {
-      switchSceneWithZoom(scene.data.id);
+      switchScene(scene);
       // On mobile, hide scene list after selecting a scene.
       if (document.body.classList.contains('mobile')) {
         hideSceneList();
@@ -165,35 +222,6 @@
 
   function sanitize(s) {
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;');
-  }
-
-  function switchSceneWithZoom(sceneId) {
-    var currentScene = viewer.scene();
-    var newScene = scenes.find(function(scene) {
-      return scene.data.id === sceneId;
-    });
-
-    if (!newScene || currentScene === newScene.scene) return;
-
-    var currentView = currentScene.view();
-    var newView = newScene.view;
-
-    // Анимация зума
-    currentView.lookTo({
-      yaw: currentView.yaw(),
-      pitch: currentView.pitch(),
-      fov: Math.PI / 2 // Зум до половины поля зрения
-    }, 1000, function() {
-      newScene.scene.switchTo({ transitionDuration: 0 }); // Переключение на новую сцену без задержки
-
-      // Возвращение зума обратно
-      newView.setFov(Math.PI / 2);
-      newView.lookTo({
-        yaw: newView.yaw(),
-        pitch: newView.pitch(),
-        fov: Math.PI / 4 // Вернуть зум к первоначальному состоянию
-      }, 1000);
-    });
   }
 
   function switchScene(scene) {
@@ -259,6 +287,7 @@
   }
 
   function createLinkHotspotElement(hotspot) {
+
     // Create wrapper element to hold icon and tooltip.
     var wrapper = document.createElement('div');
     wrapper.classList.add('hotspot');
@@ -270,7 +299,7 @@
     icon.classList.add('link-hotspot-icon');
 
     // Set rotation transform.
-    var transformProperties = ['-ms-transform', '-webkit-transform', 'transform'];
+    var transformProperties = [ '-ms-transform', '-webkit-transform', 'transform' ];
     for (var i = 0; i < transformProperties.length; i++) {
       var property = transformProperties[i];
       icon.style[property] = 'rotate(' + hotspot.rotation + 'rad)';
@@ -278,10 +307,11 @@
 
     // Add click event handler.
     wrapper.addEventListener('click', function() {
-      switchSceneWithZoom(hotspot.target);
+      switchScene(findSceneById(hotspot.target));
     });
 
     // Prevent touch and scroll events from reaching the parent element.
+    // This prevents the view control logic from interfering with the hotspot.
     stopTouchAndScrollEventPropagation(wrapper);
 
     // Create tooltip element.
@@ -297,6 +327,7 @@
   }
 
   function createInfoHotspotElement(hotspot) {
+
     // Create wrapper element to hold icon and tooltip.
     var wrapper = document.createElement('div');
     wrapper.classList.add('hotspot');
@@ -362,6 +393,7 @@
     modal.querySelector('.info-hotspot-close-wrapper').addEventListener('click', toggle);
 
     // Prevent touch and scroll events from reaching the parent element.
+    // This prevents the view control logic from interfering with the hotspot.
     stopTouchAndScrollEventPropagation(wrapper);
 
     return wrapper;
@@ -369,7 +401,8 @@
 
   // Prevent touch and scroll events from reaching the parent element.
   function stopTouchAndScrollEventPropagation(element, eventList) {
-    var eventList = ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'wheel', 'mousewheel'];
+    var eventList = [ 'touchstart', 'touchmove', 'touchend', 'touchcancel',
+                      'wheel', 'mousewheel' ];
     for (var i = 0; i < eventList.length; i++) {
       element.addEventListener(eventList[i], function(event) {
         event.stopPropagation();
@@ -378,18 +411,24 @@
   }
 
   function findSceneById(id) {
-    return scenes.find(function(scene) {
-      return scene.data.id === id;
-    });
+    for (var i = 0; i < scenes.length; i++) {
+      if (scenes[i].data.id === id) {
+        return scenes[i];
+      }
+    }
+    return null;
   }
 
   function findSceneDataById(id) {
-    return data.scenes.find(function(scene) {
-      return scene.id === id;
-    });
+    for (var i = 0; i < data.scenes.length; i++) {
+      if (data.scenes[i].id === id) {
+        return data.scenes[i];
+      }
+    }
+    return null;
   }
 
   // Display the initial scene.
-  switchSceneWithZoom(scenes[0].data.id);
+  switchScene(scenes[0]);
 
 })();
