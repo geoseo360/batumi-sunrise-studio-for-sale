@@ -1,6 +1,6 @@
-'use strict';
-
 (function() {
+  'use strict';
+
   var Marzipano = window.Marzipano;
   var bowser = window.bowser;
   var screenfull = window.screenfull;
@@ -14,6 +14,36 @@
   var sceneListToggleElement = document.querySelector('#sceneListToggle');
   var autorotateToggleElement = document.querySelector('#autorotateToggle');
   var fullscreenToggleElement = document.querySelector('#fullscreenToggle');
+
+  // Detect desktop or mobile mode.
+  if (window.matchMedia) {
+    var setMode = function() {
+      if (mql.matches) {
+        document.body.classList.remove('desktop');
+        document.body.classList.add('mobile');
+      } else {
+        document.body.classList.remove('mobile');
+        document.body.classList.add('desktop');
+      }
+    };
+    var mql = matchMedia("(max-width: 500px), (max-height: 500px)");
+    setMode();
+    mql.addListener(setMode);
+  } else {
+    document.body.classList.add('desktop');
+  }
+
+  // Detect whether we are on a touch device.
+  document.body.classList.add('no-touch');
+  window.addEventListener('touchstart', function() {
+    document.body.classList.remove('no-touch');
+    document.body.classList.add('touch');
+  });
+
+  // Use tooltip fallback mode on IE < 11.
+  if (bowser.msie && parseFloat(bowser.version) < 11) {
+    document.body.classList.add('tooltip-fallback');
+  }
 
   // Viewer options.
   var viewerOpts = {
@@ -33,7 +63,7 @@
       { cubeMapPreviewUrl: urlPrefix + "/" + data.id + "/preview.jpg" });
     var geometry = new Marzipano.CubeGeometry(data.levels);
 
-    var limiter = Marzipano.RectilinearView.limit.traditional(data.faceSize, 100 * Math.PI / 180, 120 * Math.PI / 180);
+    var limiter = Marzipano.RectilinearView.limit.traditional(data.faceSize, 100*Math.PI/180, 120*Math.PI/180);
     var view = new Marzipano.RectilinearView(data.initialViewParameters, limiter);
 
     var scene = viewer.createScene({
@@ -62,37 +92,11 @@
     };
   });
 
-  function switchSceneWithZoom(sceneId) {
-    var currentScene = viewer.scene();
-    var newScene = scenes.find(scene => scene.data.id === sceneId);
-
-    if (!newScene || currentScene === newScene) return;
-
-    var view = currentScene.view();
-
-    // Анимация зума
-    view.lookTo({
-      yaw: view.yaw(),
-      pitch: view.pitch(),
-      fov: Math.PI / 2 // Зум до половины поля зрения
-    }, 1000, function() {
-      newScene.scene.switchTo({ transitionDuration: 0 }); // Переключение на новую сцену без задержки
-
-      // Возвращение зума обратно
-      newScene.view.setFov(view.fov());
-      newScene.view.lookTo({
-        yaw: newScene.view.yaw(),
-        pitch: newScene.view.pitch(),
-        fov: Math.PI / 4 // Вернуть зум к первоначальному состоянию
-      }, 1000);
-    });
-  }
-
   // Set up autorotate, if enabled.
   var autorotate = Marzipano.autorotate({
     yawSpeed: 0.03,
     targetPitch: 0,
-    targetFov: Math.PI / 2
+    targetFov: Math.PI/2
   });
   if (data.settings.autorotateEnabled) {
     autorotateToggleElement.classList.add('enabled');
@@ -152,15 +156,53 @@
 
   // Associate view controls with elements.
   var controls = viewer.controls();
-  controls.registerMethod('upElement', new Marzipano.ElementPressControlMethod(viewUpElement, 'y', -velocity, friction), true);
-  controls.registerMethod('downElement', new Marzipano.ElementPressControlMethod(viewDownElement, 'y', velocity, friction), true);
-  controls.registerMethod('leftElement', new Marzipano.ElementPressControlMethod(viewLeftElement, 'x', -velocity, friction), true);
-  controls.registerMethod('rightElement', new Marzipano.ElementPressControlMethod(viewRightElement, 'x', velocity, friction), true);
-  controls.registerMethod('inElement', new Marzipano.ElementPressControlMethod(viewInElement, 'zoom', -velocity, friction), true);
-  controls.registerMethod('outElement', new Marzipano.ElementPressControlMethod(viewOutElement, 'zoom', velocity, friction), true);
+  controls.registerMethod('upElement',    new Marzipano.ElementPressControlMethod(viewUpElement,     'y', -velocity, friction), true);
+  controls.registerMethod('downElement',  new Marzipano.ElementPressControlMethod(viewDownElement,   'y',  velocity, friction), true);
+  controls.registerMethod('leftElement',  new Marzipano.ElementPressControlMethod(viewLeftElement,   'x', -velocity, friction), true);
+  controls.registerMethod('rightElement', new Marzipano.ElementPressControlMethod(viewRightElement,  'x',  velocity, friction), true);
+  controls.registerMethod('inElement',    new Marzipano.ElementPressControlMethod(viewInElement,  'zoom', -velocity, friction), true);
+  controls.registerMethod('outElement',   new Marzipano.ElementPressControlMethod(viewOutElement, 'zoom',  velocity, friction), true);
 
   function sanitize(s) {
     return s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;');
+  }
+
+  function switchSceneWithZoom(sceneId) {
+    var currentScene = viewer.scene();
+    var newScene = scenes.find(function(scene) {
+      return scene.data.id === sceneId;
+    });
+
+    if (!newScene || currentScene === newScene.scene) return;
+
+    var currentView = currentScene.view();
+    var newView = newScene.view;
+
+    // Анимация зума
+    currentView.lookTo({
+      yaw: currentView.yaw(),
+      pitch: currentView.pitch(),
+      fov: Math.PI / 2 // Зум до половины поля зрения
+    }, 1000, function() {
+      newScene.scene.switchTo({ transitionDuration: 0 }); // Переключение на новую сцену без задержки
+
+      // Возвращение зума обратно
+      newView.setFov(Math.PI / 2);
+      newView.lookTo({
+        yaw: newView.yaw(),
+        pitch: newView.pitch(),
+        fov: Math.PI / 4 // Вернуть зум к первоначальному состоянию
+      }, 1000);
+    });
+  }
+
+  function switchScene(scene) {
+    stopAutorotate();
+    scene.view.setParameters(scene.data.initialViewParameters);
+    scene.scene.switchTo();
+    startAutorotate();
+    updateSceneName(scene);
+    updateSceneList(scene);
   }
 
   function updateSceneName(scene) {
@@ -168,13 +210,14 @@
   }
 
   function updateSceneList(scene) {
-    sceneElements.forEach(function(el) {
+    for (var i = 0; i < sceneElements.length; i++) {
+      var el = sceneElements[i];
       if (el.getAttribute('data-id') === scene.data.id) {
         el.classList.add('current');
       } else {
         el.classList.remove('current');
       }
-    });
+    }
   }
 
   function showSceneList() {
@@ -228,9 +271,10 @@
 
     // Set rotation transform.
     var transformProperties = ['-ms-transform', '-webkit-transform', 'transform'];
-    transformProperties.forEach(function(property) {
+    for (var i = 0; i < transformProperties.length; i++) {
+      var property = transformProperties[i];
       icon.style[property] = 'rotate(' + hotspot.rotation + 'rad)';
-    });
+    }
 
     // Add click event handler.
     wrapper.addEventListener('click', function() {
@@ -324,51 +368,25 @@
   }
 
   // Prevent touch and scroll events from reaching the parent element.
-  function stopTouchAndScrollEventPropagation(element) {
+  function stopTouchAndScrollEventPropagation(element, eventList) {
     var eventList = ['touchstart', 'touchmove', 'touchend', 'touchcancel', 'wheel', 'mousewheel'];
-    eventList.forEach(function(event) {
-      element.addEventListener(event, function(event) {
+    for (var i = 0; i < eventList.length; i++) {
+      element.addEventListener(eventList[i], function(event) {
         event.stopPropagation();
       });
-    });
+    }
   }
 
   function findSceneById(id) {
-    return scenes.find(scene => scene.data.id === id) || null;
+    return scenes.find(function(scene) {
+      return scene.data.id === id;
+    });
   }
 
   function findSceneDataById(id) {
-    return data.scenes.find(scene => scene.id === id) || null;
-  }
-
-  // Detect desktop or mobile mode.
-  if (window.matchMedia) {
-    var setMode = function() {
-      if (mql.matches) {
-        document.body.classList.remove('desktop');
-        document.body.classList.add('mobile');
-      } else {
-        document.body.classList.remove('mobile');
-        document.body.classList.add('desktop');
-      }
-    };
-    var mql = matchMedia("(max-width: 500px), (max-height: 500px)");
-    setMode();
-    mql.addListener(setMode);
-  } else {
-    document.body.classList.add('desktop');
-  }
-
-  // Detect whether we are on a touch device.
-  document.body.classList.add('no-touch');
-  window.addEventListener('touchstart', function() {
-    document.body.classList.remove('no-touch');
-    document.body.classList.add('touch');
-  });
-
-  // Use tooltip fallback mode on IE < 11.
-  if (bowser.msie && parseFloat(bowser.version) < 11) {
-    document.body.classList.add('tooltip-fallback');
+    return data.scenes.find(function(scene) {
+      return scene.id === id;
+    });
   }
 
   // Display the initial scene.
