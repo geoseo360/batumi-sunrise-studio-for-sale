@@ -75,6 +75,14 @@
     }
   };
 
+  document.querySelectorAll('.thumbnail').forEach(function(element) {
+  element.addEventListener('click', function() {
+    var sceneId = element.getAttribute('data-scene');
+    scenes[sceneId].switchTo();
+  });
+});
+
+
   // Initialize viewer.
   var viewer = new Marzipano.Viewer(panoElement, viewerOpts);
 
