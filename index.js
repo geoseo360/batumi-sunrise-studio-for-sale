@@ -30,6 +30,33 @@
   var autorotateToggleElement = document.querySelector('#autorotateToggle');
   var fullscreenToggleElement = document.querySelector('#fullscreenToggle');
 
+  function switchSceneWithZoom(sceneId) {
+  var currentScene = viewer.scene();
+  var newScene = scenes[sceneId];
+  
+  if (!newScene || currentScene === newScene) return;
+
+  var view = currentScene.view();
+  
+  // Анимация зума
+  view.lookTo({
+    yaw: view.yaw(),
+    pitch: view.pitch(),
+    fov: Math.PI / 2 // Зум до половины поля зрения
+  }, 1000, function() {
+    newScene.switchTo({ transitionDuration: 0 }); // Переключение на новую сцену без задержки
+    
+    // Возвращение зума обратно
+    newScene.view().setFov(view.fov());
+    newScene.view().lookTo({
+      yaw: newScene.view().yaw(),
+      pitch: newScene.view().pitch(),
+      fov: Math.PI / 4 // Вернуть зум к первоначальному состоянию
+    }, 1000);
+  });
+}
+
+
   // Detect desktop or mobile mode.
   if (window.matchMedia) {
     var setMode = function() {
