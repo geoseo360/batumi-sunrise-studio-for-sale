@@ -54,7 +54,6 @@
       fov: Math.PI / 4 // Вернуть зум к первоначальному состоянию
     }, 1000);
   });
-}
 
 
   // Detect desktop or mobile mode.
